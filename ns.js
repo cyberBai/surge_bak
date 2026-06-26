@@ -54,6 +54,15 @@ var SIGN_RANDOM = true;
 // 单次任务最大重试次数（遇到网络错误/签到失败时）
 var MAX_RETRY = 3;
 
+// cron 触发后，先随机等待 [0, RANDOM_DELAY_MAX_MINUTES] 分钟再真正签到，
+// 这样每天的实际签到时间都会不一样。需与 sgmodule 里 cron 脚本的 timeout 配合：
+// timeout 至少要大于 RANDOM_DELAY_MAX_MINUTES*60 + 单次请求耗时，否则脚本会被中途杀掉。
+var RANDOM_DELAY_MAX_MINUTES = 59;
+
+function randomDelayMs() {
+  return Math.floor(Math.random() * RANDOM_DELAY_MAX_MINUTES * 60 * 1000);
+}
+
 var COMMON_HEADERS = {
   "Accept": "application/json, text/plain, */*",
   "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
@@ -207,8 +216,14 @@ if (isGetHeader) {
       return;
     }
     var headers = buildHeaders(storedCookie);
-    doCheckin(0, MAX_RETRY, headers).then(function () {
-      console.log("[NodeSeek] ===== 签到结束 =====");
-    });
+    var delay = randomDelayMs();
+    console.log("[NodeSeek] 本次随机延迟 " + Math.round(delay / 1000) + " 秒后执行签到（窗口 0~" + RANDOM_DELAY_MAX_MINUTES + " 分钟）");
+    sleep(delay)
+      .then(function () {
+        return doCheckin(0, MAX_RETRY, headers);
+      })
+      .then(function () {
+        console.log("[NodeSeek] ===== 签到结束 =====");
+      });
   })();
 }
